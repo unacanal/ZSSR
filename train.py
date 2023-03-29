@@ -43,7 +43,7 @@ def train(model, img, sr_factor, num_batches, learning_rate, crop_size):
             output = model(lr) + lr
             error = loss(output, hr)
 
-            cpu_loss = error.data.cpu().numpy()[0]
+            cpu_loss = error.data.cpu().numpy().item()
 
             progress.set_description("Iteration: {iter} Loss: {loss}, Learning Rate: {lr}".format( \
                 iter=iter, loss=cpu_loss, lr=learning_rate))
