@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from net import ZSSRNet
 from data import DataSampler
@@ -28,10 +29,10 @@ def adjust_learning_rate(optimizer, new_lr):
     for param_group in optimizer.param_groups:
         param_group['lr'] = new_lr
 
-def train(model, img, sr_factor, num_batches, learning_rate, crop_size):
+def train(model, img, target, num_batches, learning_rate, crop_size):
     loss = nn.L1Loss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    sampler = DataSampler(img, sr_factor, crop_size)
+    sampler = DataSampler(img, target, crop_size)
     model.cuda()
     with tqdm.tqdm(total=num_batches, miniters=1, mininterval=0) as progress:
         for iter, (hr, lr) in enumerate(sampler.generate_data()):
@@ -62,12 +63,10 @@ def train(model, img, sr_factor, num_batches, learning_rate, crop_size):
                 break
             
 
-def test(model, img, sr_factor):
+def test(model, img, img_path):
     model.eval()
-
-    img = img.resize((int(img.size[0]*sr_factor), \
-        int(img.size[1]*sr_factor)), resample=PIL.Image.BICUBIC)
-    img.save('low_res.png')
+    
+    save_name = os.path.splitext(os.path.basename(img_path))[0]
 
     img = transforms.ToTensor()(img)
     img = torch.unsqueeze(img, 0)
@@ -81,7 +80,7 @@ def test(model, img, sr_factor):
     o[np.where(o > 1)] = 1.0
     output = torch.from_numpy(o)
     output = transforms.ToPILImage()(output) 
-    output.save('zssr.png')
+    output.save(f'results/{save_name}_zssr.png')
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -91,9 +90,8 @@ def get_args():
         help='Random crop size')
     parser.add_argument('--lr', type=float, default=0.00001, \
         help='Base learning rate for Adam')
-    parser.add_argument('--factor', type=int, default=2, \
-        help='Interpolation factor.')
     parser.add_argument('--img', type=str, help='Path to input img')
+    parser.add_argument('--target', type=str, help='Path to target img')
 
     args = parser.parse_args()
 
@@ -112,8 +110,18 @@ if __name__ == '__main__':
         print("Expecting RGB or gray image, instead got", img.size)
         sys.exit(1)
 
+    target = PIL.Image.open(args.target)
+    num_channels = len(np.array(target).shape)
+    if num_channels == 3:
+        model = ZSSRNet(input_channels = 3)
+    elif num_channels == 2:
+        model = ZSSRNet(input_channels = 1)
+    else:
+        print("Expecting RGB or gray image, instead got", target.size)
+        sys.exit(1)
+
     # Weight initialization
     model.apply(weights_init_kaiming)
 
-    train(model, img, args.factor, args.num_batches, args.lr, args.crop)
-    test(model, img, args.factor)
+    train(model, img, target, args.factor, args.num_batches, args.lr, args.crop)
+    test(model, target, args.factor, args.target)
