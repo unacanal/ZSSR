@@ -37,7 +37,7 @@ class RandomRotationFromSequence(object):
             sequence: params to be passed to ``rotate`` for random rotation.
         """
         angle = np.random.choice(degrees)
-        return angle
+        return int(angle)
 
     def __call__(self, data):
         """
